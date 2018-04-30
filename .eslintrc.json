@@ -1,9 +1,23 @@
 {
-  "plugins": ["node"],
-  "extends": ["eslint:recommended", "plugin:node/recommended"],
+  "plugins": [
+    "node",
+    "mocha"
+  ],
+  "extends": [
+    "eslint:recommended",
+    "plugin:node/recommended"
+  ],
+  "env": {
+    "mocha": true
+  },
   "rules": {
-      "node/exports-style": ["error", "module.exports"],
-      "node/no-unsupported-features": 0,
-      "no-console": 0
+    "mocha/no-exclusive-tests": "error",
+    "node/exports-style": [
+      "error",
+      "module.exports"
+    ],
+    "node/no-unsupported-features": 0,
+    "node/no-unpublished-require": 0,
+    "no-console": 0
   }
 }
