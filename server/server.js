@@ -1,11 +1,14 @@
+const { env } = require('../config/config')
+
 const express = require('express')
 const bodyParser = require('body-parser')
+const _ = require('lodash')
 const { ObjectId } = require('mongodb')
 
 const { Todo } = require('./models/todo')
 const { User } = require('./models/user')
 
-const PORT = process.env.PORT || 3000
+const PORT = process.env.PORT
 
 const app = express()
 
@@ -29,7 +32,35 @@ app.get('/todos/:id', (req, res) => {
     res.send({ todo })
   }).catch(() => res.staus(400).send())
 })
-app.listen(PORT, () => console.log('Server up on port ', PORT))
+app.delete('/todos/:id', (req, res) => {
+  const id = req.params.id
+  if(!ObjectId.isValid(id)) return res.status(404).send()
+
+  Todo.findByIdAndRemove(id).then(todo => {
+    if(!todo) return res.status(404).send()
+    res.send({ todo })
+  }).catch(() => res.status(404).send())
+})
+
+app.patch('/todos/:id', (req, res) => {
+  const id = req.params.id
+  if(!ObjectId.isValid(id)) return res.status(404).send()
+  const body = _.pick(req.body, ['text', 'completed'])
+  if(_.isBoolean(body.completed) && body.completed)
+    body.completedAt = new Date().getTime()
+  else {
+    body.completedAt = null
+    body.completed = false
+  }
+
+  Todo.findByIdAndUpdate(id, { $set: body }, { new: true })
+    .then(todo => {
+      if(!todo) return res.status(404).send()
+      res.send({ todo })
+    }).catch(() => res.status(404).send())
+})
+
+app.listen(PORT, () => console.log(`Server is running on PORT:${PORT} in ***** ${env} mode *****`))
 
 
 module.exports.app = app
