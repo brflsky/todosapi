@@ -4,9 +4,11 @@ const express = require('express')
 const bodyParser = require('body-parser')
 const _ = require('lodash')
 const { ObjectId } = require('mongodb')
+const bcrypt = require('bcryptjs')
 
 const { Todo } = require('./models/todo')
 const { User } = require('./models/user')
+const { authenticate } = require('./middlewere/authenticate')
 
 const PORT = process.env.PORT
 
@@ -25,28 +27,28 @@ app.get('/todos', (req, res) => {
 })
 app.get('/todos/:id', (req, res) => {
   const id = req.params.id;
-  if(!ObjectId.isValid(id)) return res.status(404).send()
+  if (!ObjectId.isValid(id)) return res.status(404).send()
 
   Todo.findById(id).then(todo => {
-    if(!todo) return res.status(404).send()
+    if (!todo) return res.status(404).send()
     res.send({ todo })
   }).catch(() => res.staus(400).send())
 })
 app.delete('/todos/:id', (req, res) => {
   const id = req.params.id
-  if(!ObjectId.isValid(id)) return res.status(404).send()
+  if (!ObjectId.isValid(id)) return res.status(404).send()
 
   Todo.findByIdAndRemove(id).then(todo => {
-    if(!todo) return res.status(404).send()
+    if (!todo) return res.status(404).send()
     res.send({ todo })
   }).catch(() => res.status(404).send())
 })
 
 app.patch('/todos/:id', (req, res) => {
   const id = req.params.id
-  if(!ObjectId.isValid(id)) return res.status(404).send()
+  if (!ObjectId.isValid(id)) return res.status(404).send()
   const body = _.pick(req.body, ['text', 'completed'])
-  if(_.isBoolean(body.completed) && body.completed)
+  if (_.isBoolean(body.completed) && body.completed)
     body.completedAt = new Date().getTime()
   else {
     body.completedAt = null
@@ -55,7 +57,7 @@ app.patch('/todos/:id', (req, res) => {
 
   Todo.findByIdAndUpdate(id, { $set: body }, { new: true })
     .then(todo => {
-      if(!todo) return res.status(404).send()
+      if (!todo) return res.status(404).send()
       res.send({ todo })
     }).catch(() => res.status(404).send())
 })
@@ -63,15 +65,32 @@ app.patch('/todos/:id', (req, res) => {
 app.post('/users', (req, res) => {
   const body = _.pick(req.body, ['email', 'password'])
   const user = new User(body)
-  console.log('user:', user)
   user.save().then(doc => {
-    if(!doc) return res.status(400).send()
+    if (!doc) return res.status(400).send()
     return user.generateAuthToken()
     // res.send(doc)
   })
-  .then(token => res.header('x-auth', token).send(user))
-  .catch((err) => res.status(400).send(err))
+    .then(token => res.header('x-auth', token).send({ user }))
+    .catch((err) => res.status(400).send(err))
 })
+
+app.get('/users/me', authenticate, (req, res) => {
+  res.send({ user: req.user })
+})
+
+app.post('/users/login', (req, res) => {
+  User.getUserByCredentials(req.body.email, req.body.password)
+    .then(user => user.generateAuthToken().then(token => res.header('x-auth', token).send({ user })))
+    // generate new token instead getting old one
+    //.then(user => res.header('x-auth', user.tokens.find(token => token.access === 'auth').token).send(user))
+    .catch(err => res.status(401).send(err))
+})
+
+app.get('/users/logout', authenticate, (req, res) => {
+  req.user.deleteUserToken(req.token).then(() => res.status(200).send())
+    .catch(err => res.status(400).send(err))
+})
+
 
 app.listen(PORT, () => console.log(`Server is running on PORT:${PORT} in ***** ${env} mode *****`))
 

@@ -1,29 +1,14 @@
 const expect = require('expect')
 const request = require('supertest')
-const { ObjectID } = require('mongodb')
+// const { ObjectID } = require('mongodb')
 
 const { app } = require('./server')
 const { Todo } = require('./models/todo')
+const { User } = require('./models/user')
+const { populateTodos, todos, users, populateUsers } = require('../fixtures/fixtures')
 
-const todos = [
-  {
-    text: "1st task"
-  },
-  {
-    _id: new ObjectID(),//.toHexString(),
-    text: "2nd task",
-    completed: true,
-    completedAt: 4444
-  },
-  {
-    text: "3rd task"
-  }
-]
-
-beforeEach((done) => {
-  Todo.remove({}).then(() => Todo.insertMany(todos))
-  .then(() => done())
-})
+beforeEach(populateUsers)
+beforeEach(populateTodos)
 
 describe('POST /todos', () => {
   it('should add todo to database', (done) => {
@@ -157,5 +142,130 @@ describe('PATCH /todos/:id', () => {
       .send(updatedTodo)
       .expect(404)
       .end(done)
+  })
+})
+
+describe('GET /users/me', () => {
+  it('should return authenticated user', (done) => {
+    request(app)
+      .get('/users/me')
+      .set('x-auth', users[0].tokens[0].token)
+      .expect(200)
+      .expect(res => {
+        expect(res.body.user._id).toBe(users[0]._id.toHexString())
+        expect(res.body.user.email).toBe(users[0].email)
+      }).end(done)
+  })
+
+  it('should not return UNauthenticated user', (done) => {
+    request(app)
+      .get('/users/me')
+      .set('x-auth', users[0].tokens[0].token + 'badToken')
+      .expect(401)
+      .expect(res => {
+        expect(res.body.user).toNotExist()
+      }).end(done)
+  })
+})
+
+describe('POST /users', () => {
+  it('should create user on valid data', (done) => {
+    const email = 'x@xxx.xxx'
+    const password = '123abc!'
+
+    request(app)
+      .post('/users')
+      .send({ email, password })
+      .expect(200)
+      .expect(res => {
+        expect(res.headers['x-auth']).toExist()
+        expect(res.body.user.email).toBe(email)
+        expect(res.body.user._id).toExist()
+      }).end(err => {
+        if (err) return done(err)
+
+        User.findOne({ email }).then(user => {
+          expect(user).toExist()
+          expect(user.password).toNotBe(password)
+          done()
+        })
+      })
+  })
+  it('should NOT create user on INvalid data - pass to short', (done) => {
+    const email = 'x@xxx.xxx'
+    const password = '123' //to short
+
+    request(app)
+      .post('/users')
+      .send({ email, password })
+      .expect(400)
+      .expect(res => {
+        expect(res.headers['x-auth']).toNotExist()
+        expect(res.body.user).toNotExist()
+      }).end(done)
+  })
+  it('should NOT create user on valid data - duplicate email', (done) => {
+    const email = users[0].email //duplicate email
+    const password = '123abc!'
+
+    request(app)
+      .post('/users')
+      .send({ email, password })
+      .expect(400)
+      .expect(res => {
+        expect(res.headers['x-auth']).toNotExist()
+        expect(res.body.user).toNotExist()
+      }).end(done)
+  })
+})
+
+describe('POST /users/login', () => {
+  it('should login user with valid credentials', (done) => {
+    request(app)
+      .post('/users/login')
+      .send(users[0])
+      .expect(200)
+      .expect(res => {
+        expect(res.headers['x-auth']).toExist()
+        expect(res.body.user).toExist()
+      }).end((err, res) => {
+        if(err) return done(err)
+        User.getUserByToken(res.headers['x-auth'])
+          .then(user => {
+            expect(user.email).toBe(users[0].email)
+            done()
+          }).catch(done)
+      })
+  })
+
+  it('should NOT login user with INvalid credentials', (done) => {
+    request(app)
+      .post('/users/login')
+      .send({ email: users[0].email, password: 'wrongpassword'})
+      .expect(401)
+      .expect(res => {
+        expect(res.headers['x-auth']).toNotExist()
+        expect(res.body.user).toNotExist()
+      }).end(done)
+  })
+})
+
+describe('GET /users/logout', () => {
+  it('should logout user and delet his token', (done) => {
+    request(app)
+      .get('/users/logout')
+      .set('x-auth', users[0].tokens[0].token)
+      .expect(200)
+      .expect(res => {
+        expect(res.headers['x-auth']).toNotExist()
+        expect(res.body.user).toNotExist()
+      }).end((err, res) => {
+        if (err) return done(err)
+        User.getUserByToken(users[0].tokens[0].token)
+          .then(user => {
+            expect(user).toNotExist()
+            done()
+          }).catch(done)
+      })
   })
 })
