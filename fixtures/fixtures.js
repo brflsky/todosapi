@@ -5,6 +5,7 @@ const { User } = require('../server/models/user')
 
 const userOneId = new ObjectID()
 const userTwoId = new ObjectID()
+const userThreeId = new ObjectID()
 
 const users = [{
   _id: userOneId,
@@ -12,26 +13,35 @@ const users = [{
   password: 'user1password',
   tokens: [{
     access: 'auth',
-    token: jwt.sign({ _id: userOneId, access: 'auth' }, 'abc123' )
+    token: jwt.sign({ _id: userOneId, access: 'auth' }, process.env.JWT_SECRET )
   }]
 }, {
   _id: userTwoId,
   email: 'b@a.com',
-  password: 'user2password'
+  password: 'user2password',
+  tokens: [{
+    access: 'auth',
+    token: jwt.sign({ _id: userTwoId, access: 'auth' }, process.env.JWT_SECRET )
+  }]
 }]
 
 const todos = [
   {
-    text: "1st task"
+    _id: new ObjectID(),
+    text: "1st task",
+    _creator: userOneId
   },
   {
     _id: new ObjectID(),//.toHexString(),
     text: "2nd task",
     completed: true,
-    completedAt: 4444
+    completedAt: 4444,
+    _creator: userTwoId
   },
   {
-    text: "3rd task"
+    _id: new ObjectID(),
+    text: "3rd task",
+    _creator: userThreeId
   }
 ]
 
